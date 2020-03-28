@@ -42,6 +42,11 @@ for year in years:
                 except FileNotFoundError:
                     print(numericdatetostringdate(year, month, day)+" is missing")
 
-# print(data_dict['2015-01-01'].dtypes)
-for i in data_dict.values():
-    print(i.info())
+""" Concatenating tables/datafiles """
+data = None
+for data_day in data_dict.values():
+    if data is None:
+        data = data_day
+    else:
+        data.append(data_day, ignore_index=True)
+print(data)
