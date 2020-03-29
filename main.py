@@ -1,7 +1,6 @@
 import pandas as pd
 import calendar
 from datetime import timedelta, datetime
-import statistics
 import re
 
 months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
@@ -81,11 +80,11 @@ def get_monthly_data(data,column):
             current_month = "{:02d}".format(month)
             ap_data = data[data['apName'] == ap]
             ap_data = ap_data[ap_data['dataPomiaru'].str.contains(r"\d{4}-"+current_month+r"-\d{2}--")]
-            column_values= ap_data[column].tolist()
+            column_values= [cv for cv in ap_data[column].tolist() if str(cv)!='nan']
             summary[current_month][ap] ={}
             summary[current_month][ap]['max'] = max(column_values) if len(column_values) else 0
             summary[current_month][ap]['min'] = min(column_values) if len(column_values) else 0
-            summary[current_month][ap]['avg']= statistics.mean(column_values) if len(column_values) else 0
+            summary[current_month][ap]['avg']=  ( sum(column_values) / len(column_values) ) if len(column_values) else 0
     with open(column+'-monthly.txt', 'w') as summary_file:
         for month in summary:
             summary_file.write(' Month: ' + month +'\n')
