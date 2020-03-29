@@ -18,6 +18,7 @@ def numericdatetostringdate(year, month, day=0):
     return string_date
 
 
+
 def load_data_from_source():
     file = open('data_location.cfg')
     data_location = file.readline()
@@ -29,9 +30,9 @@ def load_data_from_source():
     years = [2015, 2016]
     months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
     td = timedelta(minutes=20)
-    start_at= "09-00"
-    end_at="17-00"
-
+    start_at= "07-30"
+    end_at="20-30"
+    ignore_AP_regex='AP-jgora|AP-walbrzych'
     c = calendar.Calendar()
     for year in years:
         for month in months:
@@ -45,17 +46,15 @@ def load_data_from_source():
                         data = pd.read_csv(filepath_or_buffer=data_file_name, sep=';', index_col=False, header=0, names=data_column_names)
                         extracted_data = None
                         curr_date= start_time
-                        while curr_date < end_time:
-                            if extracted_data is None:
-                                extracted_data = data[data['dataPomiaru'] == datetime.strftime(curr_date,"%Y-%m-%d--%H-%M")]
-                            else:
-                                extracted_data= extracted_data.append(data[data['dataPomiaru'] == datetime.strftime(curr_date,"%Y-%m-%d--%H-%M")])
+                        while curr_date <= end_time:
+                            curr_time_data =  data[data['dataPomiaru'] == datetime.strftime(curr_date,"%Y-%m-%d--%H-%M")]
+                            curr_time_data = curr_time_data[~curr_time_data['apName'].str.contains(ignore_AP_regex, na=False)]
+                            extracted_data = curr_time_data if extracted_data is None else extracted_data.append(curr_time_data)
                             curr_date+= td
                         data_dict[numericdatetostringdate(year, month, day)] = extracted_data
                     except FileNotFoundError:
                         print(numericdatetostringdate(year, month, day)+" is missing")
     return data_dict
-
 
 def concatenate_tables(data_dict):
     data = None
@@ -65,9 +64,6 @@ def concatenate_tables(data_dict):
         else:
             data.append(data_day, ignore_index=True)
     return data
-
-def getNumberOfUsers():
-    pass
 
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
