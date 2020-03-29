@@ -1,6 +1,6 @@
 import pandas as pd
 import calendar
-
+from datetime import timedelta, datetime
 
 def numericdatetostringdate(year, month, day=0):
     if month < 10:
@@ -28,6 +28,10 @@ def load_data_from_source():
     data_dict = {}
     years = [2015, 2016]
     months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
+    td = timedelta(minutes=20)
+    start_at= "09-00"
+    end_at="17-00"
+
     c = calendar.Calendar()
     for year in years:
         for month in months:
@@ -36,8 +40,18 @@ def load_data_from_source():
                 if day:
                     data_file_name = data_location + '/'+numericdatetostringdate(year, month)+'/statystyki-wifi-'+numericdatetostringdate(year, month, day)+'.csv'
                     try:
-                        data_dict[numericdatetostringdate(year, month, day)] = pd.read_csv(filepath_or_buffer=data_file_name, sep=';', index_col=False, header=0, names=data_column_names)
-                        data_dict[numericdatetostringdate(year, month, day)]['dataPomiaru'] = pd.to_datetime(data_dict[numericdatetostringdate(year, month, day)]['dataPomiaru'], format="%Y-%m-%d--%H-%M")
+                        start_time = datetime.strptime(str(year)+"-"+str(month)+"-" + str(day)+"--" + start_at , "%Y-%m-%d--%H-%M")
+                        end_time = datetime.strptime(str(year)+"-"+str(month)+"-" + str(day) +"--" + end_at, "%Y-%m-%d--%H-%M")
+                        data = pd.read_csv(filepath_or_buffer=data_file_name, sep=';', index_col=False, header=0, names=data_column_names)
+                        extracted_data = None
+                        curr_date= start_time
+                        while curr_date < end_time:
+                            if extracted_data is None:
+                                extracted_data = data[data['dataPomiaru'] == datetime.strftime(curr_date,"%Y-%m-%d--%H-%M")]
+                            else:
+                                extracted_data= extracted_data.append(data[data['dataPomiaru'] == datetime.strftime(curr_date,"%Y-%m-%d--%H-%M")])
+                            curr_date+= td
+                        data_dict[numericdatetostringdate(year, month, day)] = extracted_data
                     except FileNotFoundError:
                         print(numericdatetostringdate(year, month, day)+" is missing")
     return data_dict
@@ -52,13 +66,15 @@ def concatenate_tables(data_dict):
             data.append(data_day, ignore_index=True)
     return data
 
+def getNumberOfUsers():
+    pass
 
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
 except FileNotFoundError:
-    data = concatenate_tables(load_data_from_source())
-    data_file = open('complete_data.csv', 'w')
-    data_file.write(data.to_csv(index=False))
-    data_file.close()
+    data = load_data_from_source()
+    with open('complete_data.csv', 'w') as data_file:
+        for data_day in data.values():
+            data_file.write(data_day.to_csv(index=False))
 print(data)
 
