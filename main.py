@@ -1,6 +1,14 @@
 import pandas as pd
 import calendar
 from datetime import timedelta, datetime
+import statistics
+import re
+
+months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
+years = [2015, 2016]
+start_at= "07-30"
+end_at="20-30"
+ignore_AP_regex='AP-jgora|AP-walbrzych|AP-Legnica|Ustka|-GEO-'
 
 def numericdatetostringdate(year, month, day=0):
     if month < 10:
@@ -25,14 +33,8 @@ def load_data_from_source():
     data_location = data_location.split(';')[0]
     data_column_names = file.readline().split(';')[:-1]
     file.close()
-
     data_dict = {}
-    years = [2015, 2016]
-    months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
     td = timedelta(minutes=20)
-    start_at= "07-30"
-    end_at="20-30"
-    ignore_AP_regex='AP-jgora|AP-walbrzych|AP-Legnica'
     c = calendar.Calendar()
     for year in years:
         for month in months:
@@ -65,12 +67,45 @@ def concatenate_tables(data_dict):
             data.append(data_day, ignore_index=True)
     return data
 
+def get_monthly_data(data,column):
+    buildings_to_search= ['A1-', 'B4']
+    summary= {}
+    for month in months:
+        summary["{:02d}".format(month)]={}
+    data= data[['apName','dataPomiaru',column]]
+    uniqueAP = data['apName'].unique()
+    aps_to_search = [uap for uap in uniqueAP if type(uap) == str and any(bts in uap for bts in buildings_to_search)]
+    for index, ap in enumerate(aps_to_search):
+        print(index , 'out of' , len(aps_to_search))
+        for month in months:
+            current_month = "{:02d}".format(month)
+            ap_data = data[data['apName'] == ap]
+            ap_data = ap_data[ap_data['dataPomiaru'].str.contains(r"\d{4}-"+current_month+r"-\d{2}--")]
+            column_values= ap_data[column].tolist()
+            summary[current_month][ap] ={}
+            summary[current_month][ap]['max'] = max(column_values) if len(column_values) else 0
+            summary[current_month][ap]['min'] = min(column_values) if len(column_values) else 0
+            summary[current_month][ap]['avg']= statistics.mean(column_values) if len(column_values) else 0
+    with open(column+'-monthly.txt', 'w') as summary_file:
+        for month in summary:
+            summary_file.write(' Month: ' + month +'\n')
+            for ap in summary[month]:
+                summary_file.write('AP:   ' + ap 
+                +"  max: " + str(summary[month][ap]['max'])
+                +"  min: " + str(summary[month][ap]['min'])
+                +"  avg: " + str(summary[month][ap]['avg'])
+                + "\n")
+
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
+    get_monthly_data(data, 'NoOfUsers')
 except FileNotFoundError:
     data = load_data_from_source()
     with open('complete_data.csv', 'w') as data_file:
-        for data_day in data.values():
-            data_file.write(data_day.to_csv(index=False))
+        for index, data_day in enumerate(data.values()):
+            if index == 0:
+                data_file.write(data_day.to_csv(index=False))
+            else:
+                data_file.write(data_day.to_csv(index=False, header=None))
 print(data)
 
