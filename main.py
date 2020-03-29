@@ -32,7 +32,7 @@ def load_data_from_source():
     td = timedelta(minutes=20)
     start_at= "07-30"
     end_at="20-30"
-    ignore_AP_regex='AP-jgora|AP-walbrzych'
+    ignore_AP_regex='AP-jgora|AP-walbrzych|AP-Legnica'
     c = calendar.Calendar()
     for year in years:
         for month in months:
