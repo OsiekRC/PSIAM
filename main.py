@@ -1,7 +1,6 @@
 import pandas as pd
 import calendar
 from datetime import timedelta, datetime
-import re
 
 months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
 years = [2015, 2016]
@@ -85,19 +84,94 @@ def get_monthly_data(data,column):
             summary[current_month][ap]['max'] = max(column_values) if len(column_values) else 0
             summary[current_month][ap]['min'] = min(column_values) if len(column_values) else 0
             summary[current_month][ap]['avg']=  ( sum(column_values) / len(column_values) ) if len(column_values) else 0
-    with open(column+'-monthly.txt', 'w') as summary_file:
-        for month in summary:
-            summary_file.write(' Month: ' + month +'\n')
-            for ap in summary[month]:
-                summary_file.write('AP:   ' + ap 
-                +"  max: " + str(summary[month][ap]['max'])
-                +"  min: " + str(summary[month][ap]['min'])
-                +"  avg: " + str(summary[month][ap]['avg'])
-                + "\n")
+    return summary
+
+def get_max_from_data(data, max_field='avg', no_of_max =3):
+    data_max={}
+    for month in months:
+        monthly_data = data[data['month'] == month]
+        data_max[month] ={}
+        for index, row in monthly_data.iterrows():
+            try:
+                curr_max= data_max[month].keys()
+                val = row[max_field]
+                if len(curr_max) < no_of_max:
+                    data_max[month][val] = row['apName']
+                else:
+                    if any(float(cm) < val for cm in curr_max):
+                        data_max[month][val] = row['apName']
+                        del data_max[month][min(curr_max)]
+            except KeyError as ke:
+                print(str(ke))
+    return data_max
+
+def get_ratio_of_columns(data,column_a, column_b):
+    ratio_summary={}
+    data_a = get_or_generate_file(data,column_a)
+    data_b = get_or_generate_file(data, column_b)
+    for month in months:
+        ratio_summary[month]={}
+        monthly_data_a= data_a[data_a['month'] == month]
+        monthly_data_b= data_b[data_b['month'] == month]
+        for index, row in monthly_data_a.iterrows():
+            try:
+                ap= row['apName']
+                db= monthly_data_b[monthly_data_b['apName'] == ap]
+                ratio_summary[month][ap] ={}
+                ratio_summary[month][ap]['max'] = float(row['max']) / float(db['max']) if int(db['max']) != 0 else 0 
+                ratio_summary[month][ap]['min'] = float(row['min']) / float(db['min']) if int(db['min']) != 0 else 0 
+                ratio_summary[month][ap]['avg'] = float(row['avg']) / float(db['avg']) if int(db['avg']) != 0 else 0 
+            except Exception as e:
+                print(str(e))
+    return ratio_summary
+
+def get_or_generate_file(data, column_a, column_b=None):
+    filename = column_a 
+    filename+= ('-'+ column_b) if not column_b == None else ''
+    filename+='-monthly.csv'
+    try:
+        file_data = pd.read_csv(filepath_or_buffer=filename, index_col=False)
+    except FileNotFoundError:
+        generated_data = get_monthly_data(data,column_a) if column_b == None else get_ratio_of_columns(data,column_a,column_b)
+        with open(filename, 'w') as generated_file:
+            generated_file.write('month' +',' +'apName' +',' + 'max' +',' +'min' +',' +'avg\n')
+            for month in generated_data:
+                for ap in generated_data[month]:
+                    generated_file.write(
+                        str(month)  +','
+                        + ap  +','
+                        + str(generated_data[month][ap]['max']) +','
+                        + str(generated_data[month][ap]['min'])  +','
+                        + str(generated_data[month][ap]['avg'])
+                        +"\n"
+                        )
+        file_data =  pd.read_csv(filepath_or_buffer=filename, index_col=False)
+    return file_data
+    
+
 
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
-    get_monthly_data(data, 'NoOfUsers')
+    no_users=get_or_generate_file(data, 'NoOfUsers')
+    poor_users = get_or_generate_file(data, 'PoorSNRClients')
+    ratio_users = get_or_generate_file(data, 'PoorSNRClients', 'NoOfUsers')
+    max_no_users = get_max_from_data(no_users)
+    max_poor_users = get_max_from_data(poor_users)
+    max_ratio_users = get_max_from_data(ratio_users)
+    with open('report.txt' , 'w') as report: 
+        for month in months:
+            report.write('****  Month :  ' + str(month) +"\n")
+            report.write(" AP with maximum average nr of users: \n")
+            for mnu  in max_no_users[month]:
+                report.write(str(max_no_users[month][mnu]) +" : " + str(mnu) +"\n")
+            report.write("\n AP with maximum average nr of poor snr users : \n")
+            for mpu  in max_poor_users[month]:
+                report.write(str(max_poor_users[month][mpu]) +" : " + str(mpu) +"\n")
+            report.write("\n AP with Max ratio of poor to all users: \n")
+            for mru  in max_ratio_users[month]:
+                report.write(str(max_ratio_users[month][mru]) +" : " + str(mru) +"\n")
+            report.write('\n\n')
+
 except FileNotFoundError:
     data = load_data_from_source()
     with open('complete_data.csv', 'w') as data_file:
