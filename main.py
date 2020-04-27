@@ -1,6 +1,8 @@
 import pandas as pd
 import calendar
 from datetime import timedelta, datetime
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 months = [1, 2, 3, 4, 5, 6, 10, 11, 12]
 years = [2015, 2016]
@@ -147,30 +149,32 @@ def get_or_generate_file(data, column_a, column_b=None):
                         )
         file_data =  pd.read_csv(filepath_or_buffer=filename, index_col=False)
     return file_data
-    
+
 
 
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
-    no_users=get_or_generate_file(data, 'NoOfUsers')
-    poor_users = get_or_generate_file(data, 'PoorSNRClients')
-    ratio_users = get_or_generate_file(data, 'PoorSNRClients', 'NoOfUsers')
-    max_no_users = get_max_from_data(no_users)
-    max_poor_users = get_max_from_data(poor_users)
-    max_ratio_users = get_max_from_data(ratio_users)
-    with open('report.txt' , 'w') as report: 
-        for month in months:
-            report.write('****  Month :  ' + str(month) +"\n")
-            report.write(" AP with maximum average nr of users: \n")
-            for mnu  in max_no_users[month]:
-                report.write(str(max_no_users[month][mnu]) +" : " + str(mnu) +"\n")
-            report.write("\n AP with maximum average nr of poor snr users : \n")
-            for mpu  in max_poor_users[month]:
-                report.write(str(max_poor_users[month][mpu]) +" : " + str(mpu) +"\n")
-            report.write("\n AP with Max ratio of poor to all users: \n")
-            for mru  in max_ratio_users[month]:
-                report.write(str(max_ratio_users[month][mru]) +" : " + str(mru) +"\n")
-            report.write('\n\n')
+    # no_users=get_or_generate_file(data, 'NoOfUsers')
+    # poor_users = get_or_generate_file(data, 'PoorSNRClients')
+    # ratio_users = get_or_generate_file(data, 'PoorSNRClients', 'NoOfUsers')
+    # max_no_users = get_max_from_data(no_users)
+    # max_poor_users = get_max_from_data(poor_users)
+    # max_ratio_users = get_max_from_data(ratio_users)
+    # with open('report.txt' , 'w') as report:
+    #     for month in months:
+    #         report.write('****  Month :  ' + str(month) +"\n")
+    #         report.write(" AP with maximum average nr of users: \n")
+    #         for mnu  in max_no_users[month]:
+    #             report.write(str(max_no_users[month][mnu]) +" : " + str(mnu) +"\n")
+    #         report.write("\n AP with maximum average nr of poor snr users : \n")
+    #         for mpu  in max_poor_users[month]:
+    #             report.write(str(max_poor_users[month][mpu]) +" : " + str(mpu) +"\n")
+    #         report.write("\n AP with Max ratio of poor to all users: \n")
+    #         for mru  in max_ratio_users[month]:
+    #             report.write(str(max_ratio_users[month][mru]) +" : " + str(mru) +"\n")
+    #         report.write('\n\n')
+
+    # print(max_no_users)
 
 except FileNotFoundError:
     data = load_data_from_source()
@@ -180,5 +184,121 @@ except FileNotFoundError:
                 data_file.write(data_day.to_csv(index=False))
             else:
                 data_file.write(data_day.to_csv(index=False, header=None))
-print(data)
+# data['dataPomiaru'] = pd.to_datetime(data['dataPomiaru'])
+# dupa = data['NoOfUsers'].resample('M', how='sum')
+# print(dupa)
+# print(type(dupa))
+# print(type(data))
+# data.factorplot("NoUsers")
 
+
+poor_clients_monthly = pd.read_csv(filepath_or_buffer='PoorSNRClients-monthly.csv', index_col=False)
+poor_clients_and_users_monthly = pd.read_csv(filepath_or_buffer='PoorSNRClients-NoOfUsers-monthly.csv', index_col=False)
+
+users_monthly = pd.read_csv(filepath_or_buffer='NoOfUsers-monthly.csv', index_col=False)
+
+usage_monthly = pd.read_csv(filepath_or_buffer='dupaMaryni.csv', index_col=False)
+# Just so rows get sorted by the building
+users_monthly = users_monthly.sort_values(by=['apName'])
+poor_clients_monthly = poor_clients_monthly.sort_values(by=['apName'])
+poor_clients_and_users_monthly = poor_clients_and_users_monthly.sort_values(by=['apName'])
+usage_monthly = usage_monthly.sort_values(by=['apName'])
+
+users_monthly = users_monthly.loc[users_monthly['apName'].isin(['AP-A1-acf2.c585.6e0f',
+                                                                'AP-A1-acf2.c585.6c9f',
+                                                                'AP-A1-acf2.c593.f1a7',
+                                                                'AP-B4-acf2.c571.83c3',
+                                                                'AP-B4-acf2.c573.28c0',
+                                                                'AP-B4-acf2.c585.8483',
+                                                                ])]
+
+no_of_users_avg = sns.catplot(x='month', y='avg', data=users_monthly, hue='apName', legend_out=True, kind='bar')
+# Setting new legend with columns
+# handles, labels = catp.axes[0][0].get_legend_handles_labels()
+# catp.axes[0][0].legend_.remove()
+# catp.fig.legend(handles=handles, labels=labels, ncol=3, loc=8)
+# Changing labels to something sensible
+no_of_users_avg._legend.set_title('Identyfikator AP')
+no_of_users_avg.set(title="Średnia ilość użytkowników na AP", xlabel='Miesiąc', ylabel='Średnia liczba użytkowników')
+
+# # Melting data so now attributes 'avg' 'max' and 'min' are values of a new 'property' attribute
+# filtered_users_monthly = users_monthly.filter(items=['month', 'apName', 'avg', 'max'])
+# melted_users_monthly = filtered_users_monthly.melt(id_vars=['month', 'apName'], var_name='property', value_name='value')
+# melted_users_monthly = melted_users_monthly.sort_values(by=['apName'])
+#
+# relp = sns.catplot(
+#     x='month',
+#     y='value',
+#     col='property',
+#     hue='apName',
+#     col_wrap=2,
+#     data=melted_users_monthly,
+#     # facet_kws=dict(legend_out=False),
+# )
+# relp.set_axis_labels("Miesiąc", "")
+# print(relp.__dict__)
+# # Setting new legend with columns
+# # handles, labels = relp.axes[0].get_legend_handles_labels()
+# # relp.axes[0].legend_.remove()
+# # relp.fig.legend(handles=handles, labels=labels, ncol=3, loc=9)#, bbox_to_anchor=(0., 0., 0., 0.))
+
+poor_clients_monthly = poor_clients_monthly.loc[poor_clients_monthly['apName'].isin(['AP-B4-acf2.c571.83c3',
+                                                                'AP-B4-acf2.c573.28c0',
+                                                                'AP-B4-acf2.c585.8483',
+                                                                'AP-A1-acf2.c593.f1a7',
+                                                                'AP-B4-acf2.c573.3aae',
+                                                                ])]
+
+bad_connection_avg = sns.catplot(x='month', y='avg', data=poor_clients_monthly, hue='apName', legend_out=True, kind='bar')
+# Setting new legend with columns
+# handles, labels = catp.axes[0][0].get_legend_handles_labels()
+# catp.axes[0][0].legend_.remove()
+# catp.fig.legend(handles=handles, labels=labels, ncol=3, loc=8)
+# Changing labels to something sensible
+bad_connection_avg._legend.set_title('Identyfikator AP')
+bad_connection_avg.set(title="Średnia liczba użytkowników ze słabym połączeniem", xlabel='Miesiąc', ylabel='Średnia ilość użytkowników na AP')
+
+poor_clients_and_users_monthly = poor_clients_and_users_monthly.loc[poor_clients_and_users_monthly['apName'].isin([
+    'AP-A1-acf2.c585.6e2a',
+    'AP-B4-acf2.c571.83c3',
+    'AP-B4-WIZ-p408',
+    'AP-A1-acf2.c573.2a1a',
+    'AP-B4-acf2.c573.28c0',
+    'AP-B4-acf2.c573.39a8',
+    'AP-B4-WIZ-p512',
+    'AP-A1-centrala',
+    'AP-A1-acf2.c585.6e2a',
+    'AP-A1-acf2.c585.6e3c',
+    'AP-A1-p64',
+])]
+
+conn_quality_avg = sns.catplot(x='month', y='avg', data=poor_clients_and_users_monthly, hue='apName', legend_out=True, kind='bar')
+# Setting new legend with columns
+# handles, labels = catp.axes[0][0].get_legend_handles_labels()
+# catp.axes[0][0].legend_.remove()
+# catp.fig.legend(handles=handles, labels=labels, ncol=3, loc=8)
+# Changing labels to something sensible
+conn_quality_avg._legend.set_title('Identyfikator AP')
+conn_quality_avg.set(title="Awaryjność połączenia", xlabel='Miesiąc', ylabel='Awaryjność [%]')
+
+usage_monthly = usage_monthly.loc[usage_monthly['apName'].isin([
+    'AP-B4-WIZ-p448',
+    'AP-DI-B4-osiecki',
+    'AP-A1-acf2.c585.6c9f',
+    'AP-B4-WIZ-c464.1338.bb10',
+    'AP-A1-p64',
+    'AP-A1-acf2.c585.6b5c',
+    'AP-B4-acf2.c573.28c0',
+])]
+
+usage_avg = sns.catplot(x='month', y='avg', data=usage_monthly, hue='apName', legend_out=True, kind='bar')
+# Setting new legend with columns
+# handles, labels = catp.axes[0][0].get_legend_handles_labels()
+# catp.axes[0][0].legend_.remove()
+# catp.fig.legend(handles=handles, labels=labels, ncol=3, loc=8)
+# Changing labels to something sensible
+usage_avg._legend.set_title('Identyfikator AP')
+usage_avg.set(title="Wykorzystanie kanału", xlabel='Miesiąc', ylabel='Wykorzystanie [%]')
+
+# Show me the money!
+plt.show()
