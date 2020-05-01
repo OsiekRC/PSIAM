@@ -66,7 +66,11 @@ def concatenate_tables(data_dict):
     return data
 
 def get_monthly_data(data,column):
-    buildings_to_search= ['A1-', 'B4']
+    #buildings_to_search= ['A1-', 'B4']
+    buildings_to_search =["A1-","A4-","A5-","A10-",
+                          "B1-","B4-","B5-","B8-", "B9-",
+                          "C2-","C3-","C4-","C5-", "C6-", "C7-", "C11-", "C13-", "C16-",
+                          "D1-","D2-"]
     summary= {}
     for month in months:
         summary["{:02d}".format(month)]={}
@@ -86,7 +90,7 @@ def get_monthly_data(data,column):
             summary[current_month][ap]['avg']=  ( sum(column_values) / len(column_values) ) if len(column_values) else 0
     return summary
 
-def get_max_from_data(data, max_field='avg', no_of_max =3):
+def get_max_from_data(data, max_field='avg', no_of_max =10):
     data_max={}
     for month in months:
         monthly_data = data[data['month'] == month]
@@ -104,6 +108,26 @@ def get_max_from_data(data, max_field='avg', no_of_max =3):
             except KeyError as ke:
                 print(str(ke))
     return data_max
+
+def get_total_max_from_data(data, max_field='avg',edge_val= None, no_of_max =10):
+    data_max={}
+    result={}
+    data = data[['apName', max_field]]
+    for index, item in data.iterrows():
+        if not item['apName'] in data_max:
+            data_max[item['apName']] = item[max_field]
+        elif item[max_field] > data_max[item['apName']]:
+            data_max[item['apName']] = item[max_field]
+    if edge_val is not None:
+        for ap in data_max:
+            if data_max[ap] >= edge_val:
+                result[ap] = data_max[ap]
+    else:
+        for i in range(0,no_of_max):
+            max_val=(max(data_max, key=data_max.get))
+            result[max_val] = data_max[max_val]
+            data_max[max_val] =0
+    return result
 
 def get_ratio_of_columns(data,column_a, column_b):
     ratio_summary={}
@@ -152,17 +176,20 @@ def get_or_generate_file(data, column_a, column_b=None):
 
 try:
     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
-    no_users=get_or_generate_file(data, 'NoOfUsers')
+    """no_users=get_or_generate_file(data, 'NoOfUsers')
     poor_users = get_or_generate_file(data, 'PoorSNRClients')
     ratio_users = get_or_generate_file(data, 'PoorSNRClients', 'NoOfUsers')
     max_no_users = get_max_from_data(no_users)
     max_poor_users = get_max_from_data(poor_users)
-    max_ratio_users = get_max_from_data(ratio_users)
-    with open('report.txt' , 'w') as report: 
-        for month in months:
-            report.write('****  Month :  ' + str(month) +"\n")
-            report.write(" AP with maximum average nr of users: \n")
-            for mnu  in max_no_users[month]:
+    max_ratio_users = get_max_from_data(ratio_users)"""
+    utilization = get_or_generate_file(data, 'LoadChannelUtilization')
+    max_utilization = get_total_max_from_data(utilization, no_of_max= 20, edge_val=50)
+    with open('max-utilization.csv' , 'w') as report:
+        report.write('apName,utilization\n' )
+        for ap in max_utilization:
+            report.write(str(ap) + ',' + str(max_utilization[ap]) +'\n')
+            #report.write(" AP with maximum average nr of users: \n")
+            """for mnu  in max_no_users[month]:
                 report.write(str(max_no_users[month][mnu]) +" : " + str(mnu) +"\n")
             report.write("\n AP with maximum average nr of poor snr users : \n")
             for mpu  in max_poor_users[month]:
@@ -170,7 +197,8 @@ try:
             report.write("\n AP with Max ratio of poor to all users: \n")
             for mru  in max_ratio_users[month]:
                 report.write(str(max_ratio_users[month][mru]) +" : " + str(mru) +"\n")
-            report.write('\n\n')
+            report.write('\n\n')"""
+
 
 except FileNotFoundError:
     data = load_data_from_source()
