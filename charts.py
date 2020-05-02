@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -5,18 +7,143 @@ import pandas as pd
 from main2 import get_or_generate_month_file_for_building, get_or_generate_hour_file_for_building, \
     get_or_generate_month_hour_file_for_buiding, load_data_from_source, get_or_generate_number_of_aps
 
-
 buildings ={
     "A" : ["A1","A4","A5","A10"],
     "B" : ["B1","B4","B5","B8", "B9"],
-    "C" : ["C2","C3","C4","C5", "C6", "C7", "C11", "C13", "C16"],
+    "C" : ["C2","C3","C4", "C6", "C7", "C11", "C13", "C16"],
     "D" : ["D1","D2"]
 }
-ignore_buildings=["A4","A5","B8","C4","C13"]
+
+buildings_arr = ["A1","A4","A5","A10", "B1","B4","B5","B8", "B9", "C2","C3","C4","C5", "C6", "C7", "C11", "C13", "C16", "D1","D2"]
+
+ignore_buildings = ["A4","A5","B8","C4","C13"]
+
+stats_type_title_mapping = {
+    "NoOfUsers": "liczba użytkowników",
+    "PoorSNRClients": "liczba słabych połączeń",
+    "LoadChannelUtilization": "wartość wykorzystania kanału",
+    "PoorSNRClients-NoOfUsers": "Średni stosunek słabych połączeń do pozostałych"
+}
+
+time_interval_title_mapping = {
+    "hourly": "godzin",
+    "monthly": "miesiąca",
+    "monthly-hourly": "godzin dla każdego miesiąca",
+}
+
+value_type_title_mapping = {
+    "max": "Maksymalna",
+    "avg": "Średnia",
+    "combine": None,
+}
+
+column_verbosity_mapping = {
+    "max": "Maksimum",
+    "avg": "Średnia",
+    "month": "Miesiąc",
+    "hour": "Godzina",
+}
+
+month_verbosity_mapping = {
+    1: "Styczeń",
+    2: "Luty",
+    3: "Marzec",
+    4: "Kwiecień",
+    5: "Maj",
+    6: "Czerwiec",
+    10: "Październik",
+    11: "Listopad",
+    12: "Grudzień",
+}
+
+time_interval_dimensions_mapping = {
+    "hourly": {"left": 0.07, "bottom": 0.12, "right": 0.93, "top": 0.95},
+    "monthly": {"left": 0.07, "bottom": 0.2, "right": 0.93, "top": 0.95},
+    "monthly-hourly": {"left": 0.03, "bottom": 0.14, "right": 0.97, "top": 0.95},
+}
+
+def get_title(value, stats_type, building, interval):
+    value_title = value_type_title_mapping[value]
+    stats_type_title = stats_type_title_mapping[stats_type]
+    interval_title = time_interval_title_mapping[interval]
+    if value_title is None or stats_type == "PoorSNRClients-NoOfUsers":
+        stats_type_title = stats_type_title.capitalize()
+        return f"{stats_type_title} dla budynku {building} w skali {interval_title}"
+    return f"{value_title} {stats_type_title} dla budynku {building} w skali {interval_title}"
+
+def generate_chart_for_building(data, title, kind, figsize, dimensions, savedir, label=None):
+    show_legend = not len(data.columns) == 2
+    if label is not None:
+        data.plot(title=title, x=label, kind=kind, figsize=figsize, legend=show_legend)
+    else:
+        data.plot(title=title, kind=kind, figsize=figsize, legend=show_legend)
+    Path(savedir).mkdir(parents=True, exist_ok=True)
+    plt.subplots_adjust(**dimensions)
+    plt.savefig(f'{savedir}/{title}.png')
+    plt.close()
+    print(f"Processed chart: {title}")
+
+def extract_data_from_csv(stat_type, building, interval):
+    try:
+        return pd.read_csv(filepath_or_buffer=f'{stat_type}-{building}-{interval}.csv', index_col=False)
+    except FileNotFoundError:
+        return None
+
+def verbose_data(data):
+    if "hour" in data.columns:
+        data.rename(columns={"hour": column_verbosity_mapping["hour"]}, inplace=True)
+    if "month" in data.columns:
+        data.replace({'month': month_verbosity_mapping.keys()}, {"month": month_verbosity_mapping.values()}, inplace=True)
+        data.rename(columns={"month": column_verbosity_mapping["month"]}, inplace=True)
+    if "avg" in data.columns:
+        data.rename(columns={"avg": column_verbosity_mapping["avg"]}, inplace=True)
+    if "max" in data.columns:
+        data.rename(columns={"max": column_verbosity_mapping["max"]}, inplace=True)
+    return data
+
+def generate_charts_for_building_stats():
+    for stat_type in stats_type_title_mapping.keys():
+        for building in buildings_arr:
+            for interval in time_interval_title_mapping.keys():
+                extracted_data = extract_data_from_csv(stat_type, building, interval)
+                if extracted_data is not None:
+                    kind = 'line' if interval == 'hourly' else 'bar'
+                    label = 'month' if interval == 'monthly' else 'hour'
+                    for value in value_type_title_mapping.keys():
+                        if interval == "monthly-hourly":
+                            if value != "combine":
+                                chart_data = extracted_data.copy(deep=True)
+                                chart_data = verbose_data(chart_data)
+                                chart_data = chart_data.groupby(
+                                    [column_verbosity_mapping['hour'], column_verbosity_mapping['month']]
+                                ).mean().unstack(level=-1)[column_verbosity_mapping[value]]
+                                generate_chart_for_building(
+                                    chart_data[month_verbosity_mapping.values()],
+                                    get_title(value, stat_type, building, interval),
+                                    kind,
+                                    (15, 8),
+                                    time_interval_dimensions_mapping[interval],
+                                    f"exported_charts/{building}",
+                                )
+                        else:
+                            if value != "combine" and stat_type != "PoorSNRClients-NoOfUsers":
+                                chart_data = extracted_data.filter(items=[label, value])
+                            else:
+                                chart_data = extracted_data.copy(deep=True)
+                            chart_data = verbose_data(chart_data)
+                            generate_chart_for_building(
+                                chart_data,
+                                get_title(value, stat_type, building, interval),
+                                kind,
+                                (7, 5),
+                                time_interval_dimensions_mapping[interval],
+                                f"exported_charts/{building}",
+                                column_verbosity_mapping[label],
+                            )
 
 def show_no_aps_per_building(data):
     nr_of_aps = {}
-    nr_of_aps_data  = get_or_generate_number_of_aps(data)
+    nr_of_aps_data = get_or_generate_number_of_aps(data)
     for group in buildings:
         for building in buildings[group]:
             if not building in ignore_buildings:
@@ -299,25 +426,28 @@ def show_channel_utilization(data):
     plt.show()
 
 
-try:
-    data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
-    #show_avg_users_per_building(data)
-    #show_avg_users_and_poor_connection_users(data)
-    #show_no_aps_per_building(data)
-    #show_user_per_ap(data)
-    #show_aps_with_max_utilization()
-    #show_users_user_per_ap_and_ap_utilization(data)
-    #show_ratio_poor_to_all_users(data)
-    #show_max_users_per_building(data)
-    #show_max_user_per_ap(data)
-    #show_ratio_max_avg_users_per_building(data)
-    show_channel_utilization(data)
-except FileNotFoundError:
-    data = load_data_from_source()
-    with open('complete_data.csv', 'w') as data_file:
-        for index, data_day in enumerate(data.values()):
-            if index == 0:
-                data_file.write(data_day.to_csv(index=False))
-            else:
-                data_file.write(data_day.to_csv(index=False, header=None))
-print(data)
+# try:
+#     data = pd.read_csv(filepath_or_buffer='complete_data.csv', index_col=False)
+#     # show_avg_users_per_building(data)
+#     # show_avg_users_and_poor_connection_users(data)
+#     # show_no_aps_per_building(data)
+#     # show_user_per_ap(data)
+#     # show_aps_with_max_utilization()
+#     # show_users_user_per_ap_and_ap_utilization(data)
+#     # show_ratio_poor_to_all_users(data)
+#     # show_max_users_per_building(data)
+#     # show_max_user_per_ap(data)
+#     # show_ratio_max_avg_users_per_building(data)
+#     # show_channel_utilization(data)
+#
+#
+# except FileNotFoundError:
+#     data = load_data_from_source()
+#     with open('complete_data.csv', 'w') as data_file:
+#         for index, data_day in enumerate(data.values()):
+#             if index == 0:
+#                 data_file.write(data_day.to_csv(index=False))
+#             else:
+#                 data_file.write(data_day.to_csv(index=False, header=None))
+# print(data)
+generate_charts_for_building_stats()
