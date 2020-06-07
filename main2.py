@@ -393,6 +393,25 @@ def get_or_generate_month_hour_file_for_buiding(data, building_to_search, column
         file_data = pd.read_csv(filepath_or_buffer=filename, index_col=False)
     return file_data
 
+def generate_daily_of_building(data, building_to_search, column):
+
+
+
+
+    data = data[['apName', 'dataPomiaru', column]]
+    aps_data = data[data['apName'].str.contains(building_to_search, na=False)]
+
+    aps_data['dataPomiaru']=aps_data['dataPomiaru'].str.slice(0,-7)
+    aps_data = aps_data[['dataPomiaru', column]]
+
+    agg_data=aps_data.groupby('dataPomiaru').agg({column:['min','max','sum','mean']}).reset_index()
+
+    agg_data.to_csv('cos.csv', index=False)
+    return agg_data
+def get_daily():
+    data=pd.read_csv("cos.csv")
+    data=data.drop([0])
+    return data
 
 def get_or_generate_number_of_aps(data):
     filename = "NoAPs.csv"
